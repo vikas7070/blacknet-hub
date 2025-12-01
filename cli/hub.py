@@ -1,7 +1,9 @@
 import argparse
+
 from core.loader import load_sentinel, load_nexus, load_intel, load_forensic
 from core.correlator import unify
 from core.report import print_report
+from core.timeline import build_events, print_timeline
 
 
 def main():
@@ -11,6 +13,7 @@ def main():
     p.add_argument("--nexus", default="../nexus-auditor/reports/nexus-report.json")
     p.add_argument("--intel", default="../threat-intel-engine/reports/intel-report.json")
     p.add_argument("--forensic", default="../forensic-x/reports/forensic-report.json")
+    p.add_argument("--timeline-user", help="Show detailed timeline for this user")
 
     args = p.parse_args()
 
@@ -21,6 +24,10 @@ def main():
 
     unified = unify(sentinel, nexus, intel, forensic, [])
     print_report(unified)
+
+    if args.timeline_user:
+        events = build_events(sentinel, forensic)
+        print_timeline(events, args.timeline_user)
 
 
 if __name__ == "__main__":

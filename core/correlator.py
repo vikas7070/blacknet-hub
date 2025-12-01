@@ -21,6 +21,32 @@ def index_forensic(forensic):
     return out
 
 
+def compute_final_risk(entry):
+    """
+    Combined confidence model:
+    final = 0.3*sentinel + 0.4*forensic + 0.2*intel + 0.1*nexus
+    All values are 0–100.
+    """
+    base = entry.get("risk") or 0
+
+    fx = entry.get("forensic") or {}
+    ti = entry.get("intel") or {}
+    nx = entry.get("nexus") or {}
+
+    forensic_risk = fx.get("risk_score") or 0
+    intel_score = ti.get("score") or 0
+    nexus_score = nx.get("attack_surface_score") or 0
+
+    final = (
+        0.3 * base +
+        0.4 * forensic_risk +
+        0.2 * intel_score +
+        0.1 * nexus_score
+    )
+
+    entry["final_risk"] = int(final)
+
+
 def unify(sentinel, nexus, intel, forensic, websec):
     nexus_by_ip = index_nexus(nexus)
     intel_by_ioc = index_intel(intel)
@@ -33,7 +59,7 @@ def unify(sentinel, nexus, intel, forensic, websec):
         user = ent.get("user")
         ip = ent.get("ip")
 
-        unified.append({
+        item = {
             "id": inc.get("id"),
             "title": inc.get("title"),
             "severity": inc.get("severity"),
@@ -44,7 +70,10 @@ def unify(sentinel, nexus, intel, forensic, websec):
             "nexus": nexus_by_ip.get(ip),
             "intel": intel_by_ioc.get(ip),
             "forensic": forensic_by_user.get(user),
-        })
+        }
 
-    unified.sort(key=lambda x: x.get("risk", 0), reverse=True)
+        compute_final_risk(item)
+        unified.append(item)
+
+    unified.sort(key=lambda x: x.get("final_risk", 0), reverse=True)
     return unified

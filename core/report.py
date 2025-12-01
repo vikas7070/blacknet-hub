@@ -26,7 +26,8 @@ def print_report(unified):
 
         # Forensic
         if i["forensic"]:
-            print("  [FORENSIC] Risk:", i["forensic"].get("risk_score"))
+            print(f"  Severity : {i['severity']}")
+        print(f"  Risk     : {i['risk']} (final={i.get('final_risk')})")
             cats = {f["category"] for f in i["forensic"].get("findings", [])}
             print("            Categories:", list(cats))
         else:
