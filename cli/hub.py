@@ -7,15 +7,15 @@ from core.timeline import build_events, print_timeline
 
 
 def main():
-    p = argparse.ArgumentParser(description="BLACKNET HUB")
+    parser = argparse.ArgumentParser(description="BLACKNET HUB — unified SOC console")
 
-    p.add_argument("--sentinel", default="../sentinel-xdr/reports/sentinel-v2-report.json")
-    p.add_argument("--nexus", default="../nexus-auditor/reports/nexus-report.json")
-    p.add_argument("--intel", default="../threat-intel-engine/reports/intel-report.json")
-    p.add_argument("--forensic", default="../forensic-x/reports/forensic-report.json")
-    p.add_argument("--timeline-user", help="Show detailed timeline for this user")
+    parser.add_argument("--sentinel", default="../sentinel-xdr/reports/sentinel-v2-report.json")
+    parser.add_argument("--nexus", default="../nexus-auditor/reports/nexus-report.json")
+    parser.add_argument("--intel", default="../threat-intel-engine/reports/intel-report.json")
+    parser.add_argument("--forensic", default="../forensic-x/reports/forensic-report.json")
+    parser.add_argument("--timeline-user", help="Show detailed timeline for this user")
 
-    args = p.parse_args()
+    args = parser.parse_args()
 
     sentinel = load_sentinel(args.sentinel)
     nexus = load_nexus(args.nexus)

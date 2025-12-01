@@ -75,7 +75,7 @@ def print_timeline(events: List[Dict[str, Any]], entity: str) -> None:
         src = e.get("source")
         sev = e.get("severity")
         cat = e.get("category")
-        ev = (e.get("evidence") or "")[:120]
+        ev = (e.get("evidence") or "")[:160]
         print(f"{t_str} [{src}/{sev}] {cat}")
         if ev:
             print(f"  {ev}")

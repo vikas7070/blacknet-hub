@@ -25,12 +25,22 @@ def print_report(unified):
         else:
             print("  [INTEL]    No IOC match")
 
-        # Forensic-X
+        # Forensic-X + MITRE
         if i.get("forensic"):
             print("  [FORENSIC] Risk:", i["forensic"].get("risk_score"))
-            findings = i["forensic"].get("findings", [])
-            categories = list({f["category"] for f in findings})
+
+            findings = i["forensic"].get("findings", []) or []
+            categories = sorted(
+                {f.get("category") for f in findings if f.get("category")}
+            )
             print("            Categories:", categories)
+
+            mitre = i.get("mitre")
+            if mitre:
+                print(f"  [MITRE]   {mitre.get('mitre_id')} — {mitre.get('tactic')}")
+                desc = mitre.get("description")
+                if desc:
+                    print(f"           {desc}")
         else:
             print("  [FORENSIC] No suspicious behavior")
 

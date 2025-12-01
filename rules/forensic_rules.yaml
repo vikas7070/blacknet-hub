@@ -1,0 +1,19 @@
+CREDENTIAL_ABUSE:
+  mitre_id: T1078
+  tactic: Credential Access
+  description: Valid account misuse or takeover
+
+ADMIN_MISUSE:
+  mitre_id: T1547
+  tactic: Persistence
+  description: Abuse of scheduled tasks or admin persistence (cron/services)
+
+MALICIOUS_PATTERN:
+  mitre_id: T1059
+  tactic: Execution
+  description: Command execution / malicious shell patterns (reverse shells, downloaders)
+
+TIME_ANOMALY:
+  mitre_id: T1087
+  tactic: Discovery
+  description: Abnormal user behaviour outside baseline time windows
