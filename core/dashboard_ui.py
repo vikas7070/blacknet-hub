@@ -4,6 +4,8 @@ import curses
 from typing import List, Dict, Any
 
 from core.response import suggest_actions
+from core.incident_store import get_record
+from core.playbook import build_playbook
 
 
 SEVERITY_ORDER = {"CRITICAL": 3, "HIGH": 2, "MEDIUM": 1, "LOW": 0}
@@ -18,6 +20,19 @@ def _severity_label(inc: Dict[str, Any]) -> str:
     if sev == "MEDIUM":
         return "MED"
     return "LOW"
+
+
+def _short_status(inc: Dict[str, Any]) -> str:
+    st = (inc.get("status") or "NEW").upper()
+    if st.startswith("TRI"):
+        return "TRIA"
+    if st.startswith("CONTAINED"):
+        return "CONT"
+    if st.startswith("ERADICATED"):
+        return "ERAD"
+    if st.startswith("CLOSED"):
+        return "CLSD"
+    return st[:4]
 
 
 def _sort_incidents(incidents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -46,7 +61,7 @@ def _draw_header(stdscr, incidents: List[Dict[str, Any]]):
     stdscr.addstr(
         h - 2,
         2,
-        "UP/DOWN: select  |  R: refresh  |  Q: quit",
+        "UP/DOWN: select  |  D: toggle detail/defense  |  R: refresh  |  Q: quit",
         curses.A_DIM,
     )
 
@@ -59,7 +74,7 @@ def _draw_incident_list(stdscr, incidents: List[Dict[str, Any]], selected_idx: i
     stdscr.addstr(start_row, 2, "INCIDENTS", curses.A_UNDERLINE)
     start_row += 1
 
-    header = f"{'ID':<10} {'SEV':<6} {'FINAL':<6} USER       TITLE"
+    header = f"{'ID':<9} {'ST':<5} {'SEV':<6} {'FINAL':<6} {'USER':<10} TITLE"
     stdscr.addstr(start_row, 2, header, curses.A_BOLD)
     start_row += 1
 
@@ -68,10 +83,10 @@ def _draw_incident_list(stdscr, incidents: List[Dict[str, Any]], selected_idx: i
     for idx, inc in enumerate(view):
         is_sel = (idx == selected_idx)
         sev_label = _severity_label(inc)
-        line = f"{str(inc.get('id')):<10} {sev_label:<6} {str(inc.get('final_risk', '')):<6} {str(inc.get('user') or ''):<10} {str(inc.get('title') or '')[:w-40]}"
+        st_label = _short_status(inc)
+        line = f"{str(inc.get('id')):<9} {st_label:<5} {sev_label:<6} {str(inc.get('final_risk', '')):<6} {str(inc.get('user') or ''):<10} {str(inc.get('title') or '')[:w-45]}"
         attr = curses.A_REVERSE if is_sel else curses.A_NORMAL
 
-        # color by severity
         if sev_label == "CRIT":
             attr |= curses.color_pair(1)
         elif sev_label == "HIGH":
@@ -82,10 +97,31 @@ def _draw_incident_list(stdscr, incidents: List[Dict[str, Any]], selected_idx: i
         stdscr.addstr(start_row + idx, 2, line.ljust(w - 4), attr)
 
 
-def _draw_incident_detail(stdscr, incident: Dict[str, Any]):
+def _draw_incident_detail(stdscr, incident: Dict[str, Any], defense_mode: bool):
     h, w = stdscr.getmaxyx()
     top = h // 2 + 1
 
+    if defense_mode:
+        stdscr.addstr(top, 2, "DEFENSE PLAYBOOK (summary)", curses.A_UNDERLINE)
+        top += 1
+
+        pb = build_playbook(incident)
+        for phase in pb["phases"]:
+            stdscr.addstr(top, 2, f"PHASE: {phase['name']}", curses.A_BOLD)
+            top += 1
+            if not phase["steps"]:
+                stdscr.addstr(top, 4, "(no steps)")
+                top += 1
+                continue
+            for step in phase["steps"]:
+                title = step["title"][: w - 8]
+                stdscr.addstr(top, 4, f"- {title}")
+                top += 1
+                if top >= h - 3:
+                    return
+        return
+
+    # Normal detail / response mode
     stdscr.addstr(top, 2, "DETAIL / RESPONSE", curses.A_UNDERLINE)
     top += 1
 
@@ -98,9 +134,13 @@ def _draw_incident_detail(stdscr, incident: Dict[str, Any]):
     findings = forensic.get("findings") or []
     cats = sorted({f.get("category") for f in findings if f.get("category")})
 
+    state = incident.get("status") or "NEW"
+    owner = incident.get("owner") or "-"
+
     lines = [
         f"User      : {incident.get('user')}",
         f"IP        : {incident.get('ip')}",
+        f"Status    : {state} (owner={owner})",
         f"Severity  : {incident.get('severity')} (final={incident.get('final_risk')})",
         f"Categories: {', '.join(cats) if cats else 'None'}",
         f"MITRE     : {mitre_line or 'None'}",
@@ -110,7 +150,6 @@ def _draw_incident_detail(stdscr, incident: Dict[str, Any]):
         stdscr.addstr(top, 2, l[: w - 4])
         top += 1
 
-    # Response actions
     actions = suggest_actions(incident)
     stdscr.addstr(top, 2, "Suggested actions:", curses.A_BOLD)
     top += 1
@@ -130,8 +169,20 @@ def run_dashboard(stdscr, incidents: List[Dict[str, Any]]):
     curses.init_pair(2, curses.COLOR_MAGENTA, 0) # high
     curses.init_pair(3, curses.COLOR_YELLOW, 0)  # medium
 
-    incidents_sorted = _sort_incidents(incidents)
+    # Enrich with status/owner from incident_store
+    enriched: List[Dict[str, Any]] = []
+    for inc in incidents:
+        rec = get_record(inc["id"])
+        status = (rec.get("status") if rec else "NEW") or "NEW"
+        owner = rec.get("owner") if rec else None
+        new_inc = dict(inc)
+        new_inc["status"] = status
+        new_inc["owner"] = owner
+        enriched.append(new_inc)
+
+    incidents_sorted = _sort_incidents(enriched)
     selected_idx = 0
+    defense_mode = False
 
     while True:
         stdscr.erase()
@@ -141,7 +192,7 @@ def run_dashboard(stdscr, incidents: List[Dict[str, Any]]):
             if selected_idx >= len(incidents_sorted):
                 selected_idx = len(incidents_sorted) - 1
             _draw_incident_list(stdscr, incidents_sorted, selected_idx)
-            _draw_incident_detail(stdscr, incidents_sorted[selected_idx])
+            _draw_incident_detail(stdscr, incidents_sorted[selected_idx], defense_mode)
         else:
             stdscr.addstr(4, 2, "No incidents to display.")
 
@@ -157,5 +208,6 @@ def run_dashboard(stdscr, incidents: List[Dict[str, Any]]):
             if selected_idx < len(incidents_sorted) - 1:
                 selected_idx += 1
         elif ch in (ord("r"), ord("R")):
-            # caller is responsible for reloading; here we just break
-            break
+            break  # caller will re-run dashboard with fresh data
+        elif ch in (ord("d"), ord("D")):
+            defense_mode = not defense_mode
