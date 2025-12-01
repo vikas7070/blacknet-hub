@@ -4,6 +4,7 @@ from core.loader import load_sentinel, load_nexus, load_intel, load_forensic
 from core.correlator import unify
 from core.report import print_report
 from core.timeline import build_events, print_timeline
+from core.export_html import generate_html
 
 
 def main():
@@ -14,6 +15,7 @@ def main():
     parser.add_argument("--intel", default="../threat-intel-engine/reports/intel-report.json")
     parser.add_argument("--forensic", default="../forensic-x/reports/forensic-report.json")
     parser.add_argument("--timeline-user", help="Show detailed timeline for this user")
+    parser.add_argument("--output-html", help="Path to HTML report (e.g. reports/blacknet-report.html)")
 
     args = parser.parse_args()
 
@@ -23,11 +25,15 @@ def main():
     forensic = load_forensic(args.forensic)
 
     unified = unify(sentinel, nexus, intel, forensic, [])
+
     print_report(unified)
 
     if args.timeline_user:
         events = build_events(sentinel, forensic)
         print_timeline(events, args.timeline_user)
+
+    if args.output_html:
+        generate_html(unified, args.output_html)
 
 
 if __name__ == "__main__":

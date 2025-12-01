@@ -1,3 +1,6 @@
+from core.response import suggest_actions
+
+
 def print_report(unified):
     print("\n=== BLACKNET HUB — UNIFIED SOC VIEW ===\n")
 
@@ -43,5 +46,12 @@ def print_report(unified):
                     print(f"           {desc}")
         else:
             print("  [FORENSIC] No suspicious behavior")
+
+        # Response suggestions
+        actions = suggest_actions(i)
+        if actions:
+            print("  [RESPONSE] Suggested actions:")
+            for a in actions:
+                print(f"    - {a}")
 
         print("-" * 75)

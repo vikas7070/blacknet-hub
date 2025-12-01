@@ -30,9 +30,10 @@ def index_forensic(forensic: dict) -> dict:
 
 def compute_final_risk(entry: dict) -> None:
     """
-    Combined confidence model:
+    Enterprise-grade scoring:
+    - If FORENSIC risk >= 90 → final risk cannot go below 80
+    - Otherwise weighted blend is used.
     final = 0.3*sentinel + 0.4*forensic + 0.2*intel + 0.1*nexus
-    All components are 0–100.
     """
     base = entry.get("risk") or 0
 
@@ -44,12 +45,17 @@ def compute_final_risk(entry: dict) -> None:
     intel_score = ti.get("score") or 0
     nexus_score = nx.get("attack_surface_score") or 0
 
-    final = (
+    weighted = (
         0.3 * base +
         0.4 * forensic_risk +
         0.2 * intel_score +
         0.1 * nexus_score
     )
+
+    if forensic_risk >= 90:
+        final = max(80, weighted)
+    else:
+        final = weighted
 
     entry["final_risk"] = int(final)
 
@@ -79,14 +85,15 @@ def unify(sentinel: dict, nexus: dict, intel: dict, forensic: dict, websec: list
             "forensic": forensic_by_user.get(user),
         }
 
-        # Attach MITRE mapping based on first forensic category (if any)
+        # Choose strongest MITRE match from forensic findings
         mitre = None
         if item["forensic"]:
             findings = item["forensic"].get("findings", []) or []
-            if findings:
-                cat = findings[0].get("category")
-                if cat:
+            priority = ["MALICIOUS_PATTERN", "ADMIN_MISUSE", "CREDENTIAL_ABUSE", "TIME_ANOMALY"]
+            for cat in priority:
+                if any(f.get("category") == cat for f in findings):
                     mitre = rules.get(cat)
+                    break
         item["mitre"] = mitre
 
         compute_final_risk(item)
