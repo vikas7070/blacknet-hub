@@ -1,4 +1,5 @@
 from core.response import suggest_actions
+from core.incident_store import get_record
 
 
 def print_report(unified):
@@ -9,7 +10,13 @@ def print_report(unified):
         return
 
     for i in unified:
-        print(f"[{i['id']}] {i['title']}")
+        inc_id = i["id"]
+        rec = get_record(inc_id)  # do not auto-create
+        status = rec.get("status") if rec else "NEW"
+        owner = rec.get("owner") if rec else None
+
+        print(f"[{inc_id}] {i['title']}")
+        print(f"  Status   : {status}" + (f" (owner={owner})" if owner else ""))
         print(f"  Severity : {i['severity']}")
         print(f"  Risk     : {i['risk']} (final={i.get('final_risk')})")
         print(f"  User     : {i['user']}")
